@@ -37,6 +37,7 @@ class DetDETRPostProcessor(nn.Module):
     
     def forward(self, outputs, **kwargs):
         logits, boxes = outputs['pred_logits'], outputs['pred_boxes']
+        query_indices = torch.arange(boxes.shape[1], device=boxes.device).unsqueeze(0).repeat(boxes.shape[0], 1)
 
         if self.use_focal_loss:
             scores = F.sigmoid(logits)
@@ -45,6 +46,7 @@ class DetDETRPostProcessor(nn.Module):
             # labels = mod(index, self.num_classes) # for tensorrt
             index = index // self.num_classes
             boxes = boxes.gather(dim=1, index=index.unsqueeze(-1).repeat(1, 1, boxes.shape[-1]))
+            query_indices = index
             
         else:
             scores = F.softmax(logits)[:, :, :-1]
@@ -53,6 +55,7 @@ class DetDETRPostProcessor(nn.Module):
                 scores, index = torch.topk(scores, self.num_top_queries, dim=-1)
                 labels = torch.gather(labels, dim=1, index=index)
                 boxes = torch.gather(boxes, dim=1, index=index.unsqueeze(-1).tile(1, 1, boxes.shape[-1]))
+                query_indices = torch.gather(query_indices, dim=1, index=index)
 
         if kwargs is not None:
             boxes = box_revert(
@@ -69,8 +72,8 @@ class DetDETRPostProcessor(nn.Module):
             return labels, boxes, scores
 
         results = []
-        for lab, box, sco in zip(labels, boxes, scores):
-            result = dict(labels=lab, boxes=box, scores=sco)
+        for lab, box, sco, query_idx in zip(labels, boxes, scores, query_indices):
+            result = dict(labels=lab, boxes=box, scores=sco, query_indices=query_idx)
             results.append(result)
         
         return results

@@ -59,11 +59,13 @@ class DetNMSPostProcessor(torch.nn.Module):
         results = []
         if apply_score_filtering_and_nms:
             for i in range(logits.shape[0]):
+                query_indices = torch.arange(logits.shape[1], device=logits.device)
                 # Apply score threshold
                 keep_indices = pred_scores[i] > score_threshold
                 pred_box = pred_boxes[i][keep_indices]
                 pred_label = pred_labels[i][keep_indices]
                 pred_score = pred_scores[i][keep_indices]
+                pred_query_indices = query_indices[keep_indices]
 
                 # Perform NMS
                 keep = torchvision.ops.batched_nms(pred_box, pred_score, pred_label, iou_threshold=iou_threshold)
@@ -72,6 +74,7 @@ class DetNMSPostProcessor(torch.nn.Module):
                     'labels': pred_label[keep],
                     'boxes': pred_box[keep],
                     'scores': pred_score[keep],
+                    'query_indices': pred_query_indices[keep],
                 }
                 results.append(blob)
         else:
@@ -80,6 +83,7 @@ class DetNMSPostProcessor(torch.nn.Module):
                     "boxes": pred_boxes[i],
                     "labels": pred_labels[i],
                     "scores": pred_scores[i],
+                    "query_indices": torch.arange(pred_boxes.shape[1], device=pred_boxes.device),
                 }
                 results.append(out)
 
