@@ -44,6 +44,8 @@ class DetNMSPostProcessor(torch.nn.Module):
         logits, boxes = outputs['pred_logits'], outputs['pred_boxes']
         orig_target_sizes = torch.tensor(self.image_dimensions, dtype=torch.float32).to(boxes.device)
         orig_target_sizes = orig_target_sizes.repeat(boxes.size(0), 1)  # Repeat for batch size
+        query_indices = torch.arange(boxes.size(1), device=boxes.device, dtype=torch.int64)
+        query_indices = query_indices.unsqueeze(0).repeat(boxes.size(0), 1)
 
         pred_boxes = torchvision.ops.box_convert(boxes, in_fmt=self.box_fmt, out_fmt='xyxy')
         pred_boxes *= orig_target_sizes.repeat(1, 2).unsqueeze(1)
@@ -64,6 +66,7 @@ class DetNMSPostProcessor(torch.nn.Module):
                 pred_box = pred_boxes[i][keep_indices]
                 pred_label = pred_labels[i][keep_indices]
                 pred_score = pred_scores[i][keep_indices]
+                pred_query_indices = query_indices[i][keep_indices]
 
                 # Perform NMS
                 keep = torchvision.ops.batched_nms(pred_box, pred_score, pred_label, iou_threshold=iou_threshold)
@@ -72,6 +75,7 @@ class DetNMSPostProcessor(torch.nn.Module):
                     'labels': pred_label[keep],
                     'boxes': pred_box[keep],
                     'scores': pred_score[keep],
+                    'query_indices': pred_query_indices[keep],
                 }
                 results.append(blob)
         else:
@@ -80,6 +84,7 @@ class DetNMSPostProcessor(torch.nn.Module):
                     "boxes": pred_boxes[i],
                     "labels": pred_labels[i],
                     "scores": pred_scores[i],
+                    "query_indices": query_indices[i],
                 }
                 results.append(out)
 
